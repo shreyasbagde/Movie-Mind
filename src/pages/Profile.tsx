@@ -75,7 +75,7 @@ export const Profile: React.FC = () => {
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl sm:text-3xl font-black text-white">{name}</h1>
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-red-600/20 text-red-300 font-bold border border-red-500/30">
-                {isLoggedIn ? 'Active CineSuggest Member' : 'Guest Explorer'}
+                {isLoggedIn ? 'MovieMind Member' : 'Guest Explorer'}
               </span>
             </div>
             <p className="text-xs sm:text-sm text-gray-400">{email || 'Not signed in'}</p>

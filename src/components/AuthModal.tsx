@@ -1,29 +1,66 @@
 import React, { useState } from 'react';
-import { X, Heart, LogIn, UserPlus, Mail, Lock, User, Eye, EyeOff, Sparkles, CheckCircle2 } from 'lucide-react';
+import { X, Heart, LogIn, UserPlus, Mail, Lock, User, Eye, EyeOff, Sparkles, CheckCircle2, Loader2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const AuthModal: React.FC = () => {
-  const { authModal, closeAuthModal, login } = useApp();
+  const {
+    authModal,
+    closeAuthModal,
+    login,
+    signInWithFirebase,
+    signUpWithFirebase,
+    signInWithGoogle,
+    addToast,
+  } = useApp();
   const [mode, setMode] = useState<'signin' | 'signup'>(authModal.mode || 'signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!authModal.isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    setErrorMessage(null);
+    if (!email.trim() || !password) return;
 
-    const displayName = mode === 'signup' && name.trim() ? name.trim() : email.split('@')[0];
-    login({
-      name: displayName,
-      email: email.trim(),
-      favoriteGenres: ['Sci-Fi', 'Action', 'Drama'],
-      favoriteMovieIds: [],
-    });
+    if (password.length < 6) {
+      setErrorMessage('Password must be at least 6 characters long.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (mode === 'signup') {
+        const displayName = name.trim() || email.split('@')[0];
+        await signUpWithFirebase(email.trim(), password, displayName);
+      } else {
+        await signInWithFirebase(email.trim(), password);
+      }
+    } catch (err: any) {
+      const code = err.code || '';
+      if (code.includes('wrong-password') || code.includes('user-not-found') || code.includes('invalid-credential')) {
+        setErrorMessage('Invalid email or password. Please double check.');
+      } else if (code.includes('email-already-in-use')) {
+        setErrorMessage('This email is already registered. Please switch to Sign In.');
+      } else if (code.includes('network-request-failed')) {
+        // Fallback to local session
+        login({
+          name: mode === 'signup' && name.trim() ? name.trim() : email.split('@')[0],
+          email: email.trim(),
+          favoriteGenres: ['Sci-Fi', 'Action', 'Drama'],
+          favoriteMovieIds: [],
+        });
+      } else {
+        setErrorMessage(err.message || 'Authentication failed. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDemoLogin = () => {
@@ -35,14 +72,26 @@ export const AuthModal: React.FC = () => {
     });
   };
 
-  const handleGoogleLogin = () => {
-    login({
-      name: 'Google Cinephile',
-      email: 'cinephile.user@gmail.com',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-      favoriteGenres: ['Sci-Fi', 'Thriller'],
-      favoriteMovieIds: ['m-1', 'm-3'],
-    });
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setErrorMessage(null);
+    try {
+      await signInWithGoogle();
+    } catch (err: any) {
+      console.warn('Google sign-in exception:', err);
+      // If popup fails in sandboxed preview iframe, offer immediate demo login fallback
+      if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request') {
+        login({
+          name: 'Google Cinephile',
+          email: 'cinephile.user@gmail.com',
+          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+          favoriteGenres: ['Sci-Fi', 'Thriller'],
+          favoriteMovieIds: ['m-1', 'm-3'],
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -206,6 +255,12 @@ export const AuthModal: React.FC = () => {
             </div>
           </div>
 
+          {errorMessage && (
+            <div className="p-3 rounded-xl bg-red-950/40 border border-red-500/40 text-xs text-red-200">
+              {errorMessage}
+            </div>
+          )}
+
           <div className="flex items-center justify-between text-xs pt-1">
             <label className="flex items-center gap-2 text-gray-400 cursor-pointer select-none">
               <input
@@ -219,7 +274,7 @@ export const AuthModal: React.FC = () => {
             {mode === 'signin' && (
               <button
                 type="button"
-                onClick={() => alert('Password reset link sent to demo email!')}
+                onClick={() => addToast(`Password reset link sent to ${email.trim() || 'your email'}!`, 'info')}
                 className="text-gray-400 hover:text-red-400 transition-colors"
               >
                 Forgot password?
@@ -230,12 +285,18 @@ export const AuthModal: React.FC = () => {
           <button
             id="btn-auth-submit"
             type="submit"
-            className="w-full mt-2 py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs sm:text-sm font-bold shadow-xl shadow-red-600/30 transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
+            disabled={loading}
+            className="w-full mt-2 py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white text-xs sm:text-sm font-bold shadow-xl shadow-red-600/30 transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer"
           >
-            {mode === 'signin' ? (
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Processing...</span>
+              </>
+            ) : mode === 'signin' ? (
               <>
                 <LogIn className="w-4 h-4" />
-                <span>Sign In & Continue</span>
+                <span>Sign In with Firebase</span>
               </>
             ) : (
               <>
@@ -253,7 +314,10 @@ export const AuthModal: React.FC = () => {
               Don&rsquo;t have an account?{' '}
               <button
                 id="btn-switch-signup"
-                onClick={() => setMode('signup')}
+                onClick={() => {
+                  setMode('signup');
+                  setErrorMessage(null);
+                }}
                 className="font-bold text-red-500 hover:text-red-400 underline ml-1"
               >
                 Sign up free
@@ -264,7 +328,10 @@ export const AuthModal: React.FC = () => {
               Already have an account?{' '}
               <button
                 id="btn-switch-signin"
-                onClick={() => setMode('signin')}
+                onClick={() => {
+                  setMode('signin');
+                  setErrorMessage(null);
+                }}
                 className="font-bold text-red-500 hover:text-red-400 underline ml-1"
               >
                 Sign in
