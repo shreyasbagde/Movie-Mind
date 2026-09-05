@@ -1,0 +1,7 @@
+{
+  "name": "MovieMind – AI-Powered Movie Recommendation System",
+  "description": "Discover movies and receive personalized recommendations powered by content-based filtering algorithms and interactive analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
