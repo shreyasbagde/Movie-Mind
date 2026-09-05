@@ -10,6 +10,7 @@ import { AuthModal } from './components/AuthModal';
 // Pages
 import { Home } from './pages/Home';
 import { Movies } from './pages/Movies';
+import { Search } from './pages/Search';
 import { MovieDetails } from './pages/MovieDetails';
 import { Recommendations } from './pages/Recommendations';
 import { Favorites } from './pages/Favorites';
@@ -34,6 +35,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/movies" element={<Movies />} />
+              <Route path="/search" element={<Search />} />
               <Route path="/movie/:id" element={<MovieDetails />} />
               <Route path="/recommendations" element={<Recommendations />} />
               <Route path="/favorites" element={<Favorites />} />

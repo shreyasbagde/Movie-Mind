@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Film, Search, SlidersHorizontal } from 'lucide-react';
+import { Film } from 'lucide-react';
 import { FilterPanel } from '../components/FilterPanel';
 import { MovieGrid } from '../components/MovieGrid';
 import { SearchBar } from '../components/SearchBar';
@@ -15,23 +15,36 @@ export const Movies: React.FC = () => {
   // Initialize filters from search params if present
   const initialQuery = searchParams.get('q') || '';
   const initialGenre = searchParams.get('genre') || 'All';
+  const initialIndustry = searchParams.get('industry') || 'All';
+  const initialLanguage = searchParams.get('language') || 'All';
   const initialSort = (searchParams.get('sort') as FilterOptions['sortBy']) || 'popularity';
 
   const [filters, setFilters] = useState<FilterOptions>({
     searchQuery: initialQuery,
     genre: initialGenre,
+    industry: initialIndustry,
     minRating: 0,
     releaseYearRange: [1940, 2026],
-    language: 'All',
+    language: initialLanguage,
     sortBy: initialSort,
   });
 
   // Sync state if URL query param changes
   useEffect(() => {
-    const q = searchParams.get('q');
-    if (q !== null && q !== filters.searchQuery) {
-      setFilters((prev) => ({ ...prev, searchQuery: q }));
-    }
+    const q = searchParams.get('q') || '';
+    const ind = searchParams.get('industry') || 'All';
+    const lang = searchParams.get('language') || 'All';
+    const gen = searchParams.get('genre') || 'All';
+    const sort = (searchParams.get('sort') as FilterOptions['sortBy']) || 'popularity';
+
+    setFilters((prev) => ({
+      ...prev,
+      searchQuery: q,
+      industry: ind,
+      language: lang,
+      genre: gen,
+      sortBy: sort,
+    }));
   }, [searchParams]);
 
   useEffect(() => {
@@ -45,6 +58,7 @@ export const Movies: React.FC = () => {
     setFilters({
       searchQuery: '',
       genre: 'All',
+      industry: 'All',
       minRating: 0,
       releaseYearRange: [1940, 2026],
       language: 'All',
@@ -60,13 +74,13 @@ export const Movies: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-red-500 mb-1">
             <Film className="w-4 h-4" />
-            <span>Catalogue & Discovery</span>
+            <span>Indian & Global Catalogue Discovery</span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
             Browse All Movies
           </h1>
           <p className="text-gray-400 text-sm mt-1 max-w-xl">
-            Explore our curated dataset of cinematic milestones with multi-criteria filtering, instant title/director search, and rating thresholds.
+            Explore Bollywood, Tollywood, Kollywood, Mollywood, Sandalwood & Hollywood with multi-criteria industry filters, actor/director search, and rating thresholds.
           </p>
         </div>
 
@@ -74,11 +88,11 @@ export const Movies: React.FC = () => {
           <SearchBar
             value={filters.searchQuery}
             onChange={(q) => {
-              setFilters({ ...filters, searchQuery: q });
+              setFilters((prev) => ({ ...prev, searchQuery: q }));
               if (q) setSearchParams({ q });
               else setSearchParams({});
             }}
-            placeholder="Search by title, director, keyword..."
+            placeholder="Search by title, actor, director, industry..."
           />
         </div>
       </div>
@@ -97,8 +111,8 @@ export const Movies: React.FC = () => {
         onResetFilters={handleResetFilters}
         emptyMessage={
           filters.searchQuery
-            ? `No movies found matching "${filters.searchQuery}". Try adjusting your query or resetting filters.`
-            : 'No movies found with the selected genre and rating combination.'
+            ? `No movies found matching "${filters.searchQuery}". Try adjusting your search or clearing filters.`
+            : 'No movies found with the selected industry, genre, or rating combination.'
         }
       />
     </div>

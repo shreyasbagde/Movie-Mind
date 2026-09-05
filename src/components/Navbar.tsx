@@ -27,6 +27,7 @@ export const Navbar: React.FC = () => {
   const navLinks = [
     { path: '/', label: 'Home', icon: Film },
     { path: '/movies', label: 'Movies', icon: Compass },
+    { path: '/search', label: 'Search', icon: Search },
     { path: '/recommendations', label: 'Recommendations', icon: Sparkles, highlight: true },
     { path: '/favorites', label: 'Favorites', icon: Heart, badge: favorites.length },
     { path: '/analytics', label: 'Analytics', icon: BarChart2 },
@@ -36,7 +37,7 @@ export const Navbar: React.FC = () => {
   const handleQuickSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (quickSearch.trim()) {
-      navigate(`/movies?q=${encodeURIComponent(quickSearch.trim())}`);
+      navigate(`/search?q=${encodeURIComponent(quickSearch.trim())}`);
       setIsSearchOpen(false);
       setMobileMenuOpen(false);
       setQuickSearch('');
@@ -58,14 +59,14 @@ export const Navbar: React.FC = () => {
             <Link
               to="/"
               className="flex items-center gap-3 group"
-              aria-label="CineSuggest Home"
+              aria-label="MovieMind Home"
             >
               <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center text-xl font-bold text-white shadow-lg shadow-red-600/25 group-hover:scale-105 transition-transform">
                 <span className="select-none">🎬</span>
               </div>
               <div>
                 <span className="text-xl sm:text-2xl font-black tracking-tight text-white group-hover:text-red-500 transition-colors">
-                  CineSuggest
+                  MovieMind
                 </span>
               </div>
             </Link>

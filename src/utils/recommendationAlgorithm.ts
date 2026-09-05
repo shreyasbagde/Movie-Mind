@@ -17,10 +17,11 @@ export function calculateJaccardSimilarity(setA: string[], setB: string[]): numb
  * Scaled 0 to 1.
  */
 export function calculateRatingSimilarity(movieRating: number, preferredRating: number): number {
-  const maxDiff = 9; // Range from 1 to 10
-  const diff = Math.abs(movieRating - preferredRating);
-  // Exponential decay or linear proximity:
-  return Math.max(0, 1 - diff / maxDiff);
+  if (movieRating >= preferredRating) {
+    return 1.0;
+  }
+  const diff = preferredRating - movieRating;
+  return Math.max(0, 1 - diff / 4.0);
 }
 
 /**
@@ -33,117 +34,170 @@ export function calculateYearPreferenceScore(
   const currentYear = 2026;
   switch (preference) {
     case 'recent':
-      // Favors movies released within last 6 years
       if (year >= currentYear - 6) return 1.0;
-      if (year >= currentYear - 12) return 0.7;
-      return Math.max(0.2, (year - 1970) / (currentYear - 1970));
+      if (year >= currentYear - 12) return 0.75;
+      return Math.max(0.3, (year - 1970) / (currentYear - 1970));
     case 'classics':
-      // Favors movies before 2005
-      if (year <= 2000) return 1.0;
-      if (year <= 2008) return 0.7;
+      if (year <= 2005) return 1.0;
+      if (year <= 2012) return 0.7;
       return 0.3;
     case 'highly_rated':
     case 'popular':
     case 'all':
     default:
-      // Neutral distribution
-      return 0.85;
+      return 0.9;
   }
 }
 
 /**
- * Computes recommendation score and explanation for a given movie based on user preferences.
+ * Computes recommendation score and explanation for a given movie based on:
+ * - Genre Similarity: 35%
+ * - Language Match: 20%
+ * - Industry Match: 15%
+ * - Rating Similarity: 15%
+ * - Popularity: 10%
+ * - Year Preference: 5%
  */
 export function evaluateMovieRecommendation(
   movie: Movie,
   prefs: UserPreferences,
   seedMovie?: Movie
 ): RecommendationResult {
-  // 1. Genre Similarity (40%)
-  let genreSimilarity = 0;
-  const targetGenres = seedMovie ? seedMovie.genres : prefs.favoriteGenres;
-  if (targetGenres && targetGenres.length > 0) {
+  // 1. Genre Similarity (35%)
+  let genreSimilarity = 0.5;
+  const targetGenres = seedMovie ? seedMovie.genres : (prefs.favoriteGenres || []);
+  if (targetGenres.length > 0) {
     const matchingGenres = movie.genres.filter((g) =>
       targetGenres.some((tg) => tg.toLowerCase() === g.toLowerCase())
     );
-    genreSimilarity = matchingGenres.length / Math.max(1, targetGenres.length);
-    // Cap at 1.0
-    genreSimilarity = Math.min(1.0, genreSimilarity);
+    if (matchingGenres.length > 0) {
+      const matchRatio = matchingGenres.length / targetGenres.length;
+      genreSimilarity = Math.min(1.0, 0.75 + 0.25 * matchRatio);
+    } else {
+      genreSimilarity = 0.15;
+    }
   } else {
-    genreSimilarity = 0.5; // neutral if no genres specified
+    genreSimilarity = 0.75; // neutral when unconstrained
   }
+  const genreScore = genreSimilarity * 35;
 
-  // 2. Rating Similarity (25%)
+  // 2. Language Match (20%)
+  let languageSimilarity = 0.75;
+  const targetLanguage = seedMovie
+    ? seedMovie.language
+    : (prefs.preferredLanguage && prefs.preferredLanguage !== 'All' ? prefs.preferredLanguage : '');
+
+  if (targetLanguage) {
+    const tLang = targetLanguage.toLowerCase().trim();
+    const mLang = movie.language.toLowerCase().trim();
+
+    if (mLang === tLang) {
+      languageSimilarity = 1.0;
+    } else if (
+      // High-affinity crossover for Indian multilingual/pan-Indian releases
+      (tLang === 'telugu' && mLang === 'kannada') ||
+      (tLang === 'kannada' && mLang === 'telugu') ||
+      (tLang === 'tamil' && mLang === 'malayalam') ||
+      (tLang === 'malayalam' && mLang === 'tamil') ||
+      (tLang === 'hindi' && (mLang === 'telugu' || mLang === 'tamil' || mLang === 'kannada'))
+    ) {
+      languageSimilarity = 0.5;
+    } else {
+      languageSimilarity = 0.2;
+    }
+  }
+  const languageScore = languageSimilarity * 20;
+
+  // 3. Industry Match (15%)
+  let industrySimilarity = 0.75;
+  const targetIndustry = seedMovie
+    ? seedMovie.industry
+    : (prefs.preferredIndustry && prefs.preferredIndustry !== 'All' ? prefs.preferredIndustry : '');
+
+  if (targetIndustry) {
+    const tInd = targetIndustry.toLowerCase().trim();
+    const mInd = (movie.industry || '').toLowerCase().trim();
+
+    if (mInd === tInd) {
+      industrySimilarity = 1.0;
+    } else if (
+      // Regional / pan-Indian cinema affinity
+      (tInd === 'tollywood' && mInd === 'sandalwood') ||
+      (tInd === 'sandalwood' && mInd === 'tollywood') ||
+      (tInd === 'kollywood' && mInd === 'mollywood') ||
+      (tInd === 'mollywood' && mInd === 'kollywood') ||
+      (tInd === 'bollywood' && ['tollywood', 'kollywood', 'sandalwood'].includes(mInd))
+    ) {
+      industrySimilarity = 0.55;
+    } else {
+      industrySimilarity = 0.2;
+    }
+  }
+  const industryScore = industrySimilarity * 15;
+
+  // 4. Rating Similarity (15%)
   const targetRating = prefs.preferredRating || 8.0;
   const ratingSimilarity = calculateRatingSimilarity(movie.rating, targetRating);
+  const ratingScore = ratingSimilarity * 15;
 
-  // 3. Keyword Similarity (15%)
-  let keywordSimilarity = 0;
-  const targetKeywords = seedMovie ? seedMovie.keywords : (prefs.keywords || []);
-  if (targetKeywords.length > 0) {
-    keywordSimilarity = calculateJaccardSimilarity(movie.keywords, targetKeywords);
-  } else {
-    // If no explicit keywords, correlate through overview matching or general thematic richness
-    keywordSimilarity = 0.5;
-  }
+  // 5. Popularity (10%)
+  const popularityNormalized = Math.min(1.0, (movie.popularity || 80) / 100);
+  const popularityScore = popularityNormalized * 10;
 
-  // 4. Popularity (10%)
-  // Normalized 0 - 100 to 0 - 1
-  const popularityScoreNormalized = (movie.popularity || 80) / 100;
-
-  // 5. Release-year preference (10%)
-  const yearPreferenceNormalized = calculateYearPreferenceScore(
+  // 6. Year Preference (5%)
+  const yearNormalized = calculateYearPreferenceScore(
     movie.year,
     prefs.preferredMovieType || 'all'
   );
+  const yearScore = yearNormalized * 5;
 
-  // Weighted composition:
-  // 40% Genre + 25% Rating + 15% Keyword + 10% Popularity + 10% Year
-  const genreScore = genreSimilarity * 40;
-  const ratingScore = ratingSimilarity * 25;
-  const keywordScore = keywordSimilarity * 15;
-  const popularityScore = popularityScoreNormalized * 10;
-  const yearScore = yearPreferenceNormalized * 10;
-
-  const totalRaw = genreScore + ratingScore + keywordScore + popularityScore + yearScore;
-  const score = Math.round(Math.min(100, Math.max(10, totalRaw)));
+  // Total weighted score
+  const totalRaw =
+    genreScore + languageScore + industryScore + ratingScore + popularityScore + yearScore;
+  const score = Math.round(Math.min(99, Math.max(15, totalRaw)));
 
   const breakdown: RecommendationBreakdown = {
     genreScore: Number(genreScore.toFixed(1)),
+    languageScore: Number(languageScore.toFixed(1)),
+    industryScore: Number(industryScore.toFixed(1)),
     ratingScore: Number(ratingScore.toFixed(1)),
-    keywordScore: Number(keywordScore.toFixed(1)),
     popularityScore: Number(popularityScore.toFixed(1)),
     yearScore: Number(yearScore.toFixed(1)),
   };
 
-  // Generate clear natural language explanation for college presentation
+  // Human-readable explanation and match reasons
   const matchReasons: string[] = [];
   const matchingGenres = movie.genres.filter((g) =>
     (targetGenres || []).some((tg) => tg.toLowerCase() === g.toLowerCase())
   );
 
   if (matchingGenres.length > 0) {
-    matchReasons.push(`Shares ${matchingGenres.join(' & ')} genres`);
+    matchReasons.push(`Shares ${matchingGenres.join(' & ')} genre`);
   }
-  if (movie.rating >= targetRating - 0.5) {
-    matchReasons.push(`High rating of ${movie.rating} ⭐ meets your expectation`);
+  if (targetLanguage && movie.language.toLowerCase() === targetLanguage.toLowerCase()) {
+    matchReasons.push(`Original ${movie.language} language production`);
   }
-  if (movie.popularity >= 90) {
-    matchReasons.push(`Critically acclaimed and high popularity score (${movie.popularity}/100)`);
+  if (targetIndustry && movie.industry.toLowerCase() === targetIndustry.toLowerCase()) {
+    matchReasons.push(`${movie.industry} cinema favorite`);
   }
-  if (prefs.preferredMovieType === 'recent' && movie.year >= 2018) {
-    matchReasons.push(`Recent contemporary release (${movie.year})`);
-  } else if (prefs.preferredMovieType === 'classics' && movie.year <= 2005) {
-    matchReasons.push(`Timeless cinematic classic from ${movie.year}`);
+  if (movie.rating >= targetRating - 0.3) {
+    matchReasons.push(`Exceptional ${movie.rating} ⭐ rating matches target`);
+  }
+  if (movie.popularity >= 92) {
+    matchReasons.push(`Trending with high audience engagement (${movie.popularity}%)`);
   }
 
   let explanation = '';
   if (seedMovie) {
-    explanation = `Recommended because you watched "${seedMovie.title}" (${matchingGenres.join(', ')}).`;
+    explanation = `Recommended because you watched "${seedMovie.title}" (${seedMovie.industry}, ${matchingGenres.join(', ')}).`;
+  } else if (targetLanguage && matchingGenres.length > 0) {
+    explanation = `Recommended because you enjoy ${movie.language} ${matchingGenres.join(' & ').toLowerCase()} movies.`;
+  } else if (targetIndustry && matchingGenres.length > 0) {
+    explanation = `Recommended because you enjoy ${movie.industry} ${matchingGenres.join(' & ').toLowerCase()} movies.`;
   } else if (matchingGenres.length > 0) {
-    explanation = `Matches your preference for ${matchingGenres.join(' & ')} movies with a stellar ${movie.rating} rating.`;
+    explanation = `Matches your preference for ${matchingGenres.join(' & ')} movies with a top-rated score.`;
   } else {
-    explanation = `Top-rated cinematic pick with strong critical acclaim (${movie.rating} ⭐) and high viewer engagement.`;
+    explanation = `Highly acclaimed ${movie.industry} title with ${movie.rating} ⭐ rating and high viewer ratings.`;
   }
 
   return {
@@ -161,11 +215,10 @@ export function evaluateMovieRecommendation(
 export function getPersonalizedRecommendations(
   movies: Movie[],
   preferences: UserPreferences,
-  limit: number = 10,
+  limit: number = 12,
   excludeMovieId?: string
 ): RecommendationResult[] {
   const filtered = excludeMovieId ? movies.filter((m) => m.id !== excludeMovieId) : movies;
-
   const results = filtered.map((movie) => evaluateMovieRecommendation(movie, preferences));
 
   // Sort strictly by recommendation score descending
@@ -176,7 +229,7 @@ export function getPersonalizedRecommendations(
 
 /**
  * Content-based filtering for "Because You Watched This":
- * Finds movies most similar to a given reference movie based on genre, director, keywords, and rating.
+ * Finds movies most similar to a given reference movie based on genre, industry, language, director, keywords, and rating.
  */
 export function getSimilarMovies(
   referenceMovie: Movie,
@@ -186,51 +239,53 @@ export function getSimilarMovies(
   const candidates = allMovies.filter((m) => m.id !== referenceMovie.id);
 
   const results: RecommendationResult[] = candidates.map((movie) => {
-    // Shared genres (40%)
+    // 1. Shared genres (35%)
     const sharedGenres = movie.genres.filter((g) => referenceMovie.genres.includes(g));
     const genreSim = sharedGenres.length / Math.max(1, referenceMovie.genres.length);
+    const genreScore = genreSim * 35;
 
-    // Shared keywords (25%)
-    const sharedKeywords = movie.keywords.filter((k) =>
-      referenceMovie.keywords.some((rk) => rk.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(rk.toLowerCase()))
-    );
-    const keywordSim = sharedKeywords.length / Math.max(1, referenceMovie.keywords.length);
+    // 2. Language match (20%)
+    const langSim = movie.language === referenceMovie.language ? 1.0 : 0.3;
+    const languageScore = langSim * 20;
 
-    // Director match bonus (15%)
-    const directorMatch = movie.director === referenceMovie.director ? 1.0 : 0.0;
+    // 3. Industry match (15%)
+    const indSim = movie.industry === referenceMovie.industry ? 1.0 : 0.3;
+    const industryScore = indSim * 15;
 
-    // Rating proximity (10%)
-    const ratingSim = 1 - Math.min(1, Math.abs(movie.rating - referenceMovie.rating) / 5);
+    // 4. Rating proximity (15%)
+    const ratingSim = 1 - Math.min(1, Math.abs(movie.rating - referenceMovie.rating) / 4);
+    const ratingScore = Math.max(0, ratingSim) * 15;
 
-    // Popularity (10%)
-    const popSim = movie.popularity / 100;
-
-    const genreScore = genreSim * 40;
-    const keywordScore = keywordSim * 25;
-    const directorScore = directorMatch * 15;
-    const ratingScore = ratingSim * 10;
+    // 5. Popularity (10%)
+    const popSim = (movie.popularity || 80) / 100;
     const popularityScore = popSim * 10;
 
-    const totalRaw = genreScore + keywordScore + directorScore + ratingScore + popularityScore;
+    // 6. Director match / Year (5%)
+    const directorMatch = movie.director === referenceMovie.director;
+    const yearScore = directorMatch ? 5 : 3;
+
+    const totalRaw =
+      genreScore + languageScore + industryScore + ratingScore + popularityScore + yearScore;
     const score = Math.round(Math.min(99, Math.max(20, totalRaw)));
 
     const matchReasons: string[] = [];
     if (sharedGenres.length > 0) matchReasons.push(`Shares ${sharedGenres.slice(0, 2).join(', ')} genre`);
     if (directorMatch) matchReasons.push(`Directed by ${movie.director}`);
-    if (sharedKeywords.length > 0) matchReasons.push(`Similar themes: ${sharedKeywords.slice(0, 2).join(', ')}`);
+    if (movie.industry === referenceMovie.industry) matchReasons.push(`Same ${movie.industry} cinema heritage`);
 
     return {
       movie,
       score,
       breakdown: {
         genreScore: Number(genreScore.toFixed(1)),
+        languageScore: Number(languageScore.toFixed(1)),
+        industryScore: Number(industryScore.toFixed(1)),
         ratingScore: Number(ratingScore.toFixed(1)),
-        keywordScore: Number(keywordScore.toFixed(1)),
         popularityScore: Number(popularityScore.toFixed(1)),
-        yearScore: Number(directorScore.toFixed(1)), // used for director/theme alignment
+        yearScore: Number(yearScore.toFixed(1)),
       },
       explanation: directorMatch
-        ? `Both directed by ${movie.director} with shared ${sharedGenres.join('/')} elements.`
+        ? `Both directed by ${movie.director} with shared ${movie.industry} roots.`
         : `Recommended based on similar themes (${sharedGenres.join(', ')}) to "${referenceMovie.title}".`,
       matchReasons,
     };

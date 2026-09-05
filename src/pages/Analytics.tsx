@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BarChart2,
@@ -7,17 +7,19 @@ import {
   Flame,
   Award,
   Database,
-  TrendingUp,
-  Layers,
   ArrowRight,
+  Globe,
 } from 'lucide-react';
 import {
   GenreDistributionChart,
   RatingDistributionChart,
   YearDistributionChart,
+  IndustryDistributionChart,
+  LanguageDistributionChart,
 } from '../components/Charts';
 import { AnalyticsData, Movie } from '../types';
 import { recommendationService } from '../services/recommendationService';
+import { getIndustryBadge, getLanguageBadge } from '../utils/movieHelpers';
 
 export const Analytics: React.FC = () => {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
@@ -37,6 +39,29 @@ export const Analytics: React.FC = () => {
     fetchData();
   }, []);
 
+  // Compute Industry Distribution
+  const industryDistribution = useMemo(() => {
+    const counts: Record<string, number> = {};
+    allMovies.forEach((m) => {
+      const ind = m.industry || 'Hollywood';
+      counts[ind] = (counts[ind] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([industry, count]) => ({ industry, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [allMovies]);
+
+  // Compute Language Distribution
+  const languageDistribution = useMemo(() => {
+    const counts: Record<string, number> = {};
+    allMovies.forEach((m) => {
+      counts[m.language] = (counts[m.language] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([language, count]) => ({ language, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [allMovies]);
+
   if (loading || !analytics) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center">
@@ -52,19 +77,19 @@ export const Analytics: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 text-red-500 text-xs font-bold uppercase tracking-wider mb-1">
             <BarChart2 className="w-4 h-4" />
-            <span>Exploratory Data Analysis (EDA)</span>
+            <span>Dataset Analytics &amp; Representation</span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-            Movie Dataset Analytics
+            Indian &amp; Global Movie Dataset Analytics
           </h1>
           <p className="text-gray-400 text-sm mt-1 max-w-2xl">
-            Statistical distribution, feature engineering metrics, and corpus attributes powering the MovieMind recommendation engine.
+            Statistical distribution, feature engineering metrics, and multi-industry corpus attributes powering the MovieMind recommendation engine.
           </p>
         </div>
 
         <div className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-gray-300 backdrop-blur-md">
           <Database className="w-4 h-4 text-emerald-400" />
-          <span>Local Corpus + TMDB Parity</span>
+          <span>Pan-Indian + Hollywood Corpus ({allMovies.length} Titles)</span>
         </div>
       </div>
 
@@ -81,9 +106,9 @@ export const Analytics: React.FC = () => {
             </div>
           </div>
           <div className="text-3xl sm:text-4xl font-black text-white mb-1">
-            {analytics.totalMovies}
+            {allMovies.length}
           </div>
-          <span className="text-xs text-gray-400">Curated high-dimension titles</span>
+          <span className="text-xs text-gray-400">Curated Indian &amp; Global titles</span>
         </div>
 
         {/* Card 2: Average Rating */}
@@ -99,7 +124,7 @@ export const Analytics: React.FC = () => {
           <div className="text-3xl sm:text-4xl font-black text-white mb-1">
             {analytics.averageRating} <span className="text-lg text-gray-500 font-semibold">/ 10</span>
           </div>
-          <span className="text-xs text-gray-400">Weighted IMDB/TMDB scale</span>
+          <span className="text-xs text-gray-400">Weighted IMDb/TMDB scale</span>
         </div>
 
         {/* Card 3: Most Popular Genre */}
@@ -118,7 +143,7 @@ export const Analytics: React.FC = () => {
           <span className="text-xs text-gray-400">Highest frequency feature</span>
         </div>
 
-        {/* Card 4: Highest Rated Movie */}
+        {/* Card 4: Top Rated Title */}
         <div className="p-5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md shadow-xl relative overflow-hidden group hover:border-white/20 transition-all">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
@@ -132,14 +157,45 @@ export const Analytics: React.FC = () => {
             {analytics.highestRatedMovie.title}
           </div>
           <span className="text-xs text-emerald-400 font-semibold">
-            {analytics.highestRatedMovie.rating} ⭐ Rating
+            {analytics.highestRatedMovie.rating} ⭐ Rating ({analytics.highestRatedMovie.industry || 'Cinema'})
           </span>
         </div>
       </div>
 
-      {/* Visual Charts Section */}
+      {/* Visual Charts Section - Row 1: Industry & Language Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Chart 1: Movies by Genre */}
+        {/* Industry Distribution */}
+        <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl backdrop-blur-xl space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-black text-lg text-white">Movies by Cinema Industry</h3>
+              <p className="text-xs text-gray-400">Bollywood, Tollywood, Kollywood, Mollywood, Sandalwood, Hollywood</p>
+            </div>
+            <span className="text-xs px-2.5 py-1 rounded-xl bg-red-600/20 text-red-300 border border-red-500/30 font-bold">
+              6 Industries
+            </span>
+          </div>
+          <IndustryDistributionChart data={industryDistribution} />
+        </div>
+
+        {/* Language Distribution */}
+        <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl backdrop-blur-xl space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-black text-lg text-white">Movies by Language</h3>
+              <p className="text-xs text-gray-400">Hindi, Telugu, Tamil, Malayalam, Kannada, English</p>
+            </div>
+            <span className="text-xs px-2.5 py-1 rounded-xl bg-blue-600/20 text-blue-300 border border-blue-500/30 font-bold">
+              Linguistic Spread
+            </span>
+          </div>
+          <LanguageDistributionChart data={languageDistribution} />
+        </div>
+      </div>
+
+      {/* Visual Charts Section - Row 2: Genre & Rating Distribution */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Chart: Movies by Genre */}
         <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl backdrop-blur-xl space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -153,7 +209,7 @@ export const Analytics: React.FC = () => {
           <GenreDistributionChart data={analytics.genresDistribution} />
         </div>
 
-        {/* Chart 2: Rating Distribution */}
+        {/* Chart: Rating Distribution */}
         <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl backdrop-blur-xl space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -182,12 +238,12 @@ export const Analytics: React.FC = () => {
         <YearDistributionChart data={analytics.yearDistribution} />
       </div>
 
-      {/* Data Science Table: Top 10 Dataset Records */}
+      {/* Data Science Table: Top Titles */}
       <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4 backdrop-blur-xl shadow-2xl">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-black text-lg text-white">Sample Training Corpus (Top Titles)</h3>
-            <p className="text-xs text-gray-400">Normalized features ready for cosine & Jaccard matrix operations</p>
+            <p className="text-xs text-gray-400">Normalized features ready for cosine &amp; Jaccard matrix operations</p>
           </div>
           <Link
             to="/movies"
@@ -203,20 +259,32 @@ export const Analytics: React.FC = () => {
             <thead className="bg-black/60 uppercase text-[11px] font-bold text-gray-400 border-b border-white/10">
               <tr>
                 <th className="py-3 px-4">Title</th>
+                <th className="py-3 px-4">Industry</th>
+                <th className="py-3 px-4">Language</th>
                 <th className="py-3 px-4">Year</th>
                 <th className="py-3 px-4">Genres</th>
                 <th className="py-3 px-4">Rating</th>
-                <th className="py-3 px-4">Popularity</th>
                 <th className="py-3 px-4">Director</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
-              {allMovies.slice(0, 8).map((m) => (
+              {allMovies.slice(0, 10).map((m) => (
                 <tr key={m.id} className="hover:bg-white/5 transition-colors">
                   <td className="py-3 px-4 font-bold text-white flex items-center gap-2">
                     <Link to={`/movie/${m.id}`} className="hover:text-red-400">
                       {m.title}
                     </Link>
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-white/10 text-gray-200">
+                      {m.industry || 'Hollywood'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-gray-300">
+                    <span className="flex items-center gap-1">
+                      <span>{getLanguageBadge(m.language).emoji}</span>
+                      <span>{m.language}</span>
+                    </span>
                   </td>
                   <td className="py-3 px-4 text-gray-400">{m.year}</td>
                   <td className="py-3 px-4">
@@ -232,7 +300,6 @@ export const Analytics: React.FC = () => {
                     </div>
                   </td>
                   <td className="py-3 px-4 font-bold text-amber-400">{m.rating} ⭐</td>
-                  <td className="py-3 px-4 text-gray-400">{m.popularity}</td>
                   <td className="py-3 px-4 text-gray-300">{m.director}</td>
                 </tr>
               ))}

@@ -1,27 +1,32 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Sparkles, Compass, Play, Star, Flame } from 'lucide-react';
+import { Sparkles, Compass, Play, Star, Flame, Film } from 'lucide-react';
 import { Movie } from '../types';
 import { SearchBar } from './SearchBar';
+import { INDUSTRIES } from '../utils/movieHelpers';
 
 interface HeroProps {
   featuredMovie?: Movie;
   searchQuery: string;
   onSearchChange: (q: string) => void;
   onSearchSubmit?: () => void;
+  selectedIndustry?: string;
+  onSelectIndustry?: (industry: string) => void;
 }
 
 export const Hero: React.FC<HeroProps> = ({
   featuredMovie,
   searchQuery,
   onSearchChange,
+  selectedIndustry = 'All',
+  onSelectIndustry,
 }) => {
   const navigate = useNavigate();
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/movies?q=${encodeURIComponent(searchQuery.trim())}`);
+      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
 
@@ -39,39 +44,79 @@ export const Hero: React.FC<HeroProps> = ({
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover object-center opacity-30 scale-105 transform duration-1000 ease-out"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#050505] via-[#050505]/80 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-[#050505]/70" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#050505] via-[#050505]/85 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-[#050505]/75" />
       </div>
 
       {/* Hero Content Container */}
-      <div className="relative z-10 max-w-4xl px-6 py-14 sm:py-20 md:py-24 lg:px-12 flex flex-col items-start">
-        {/* Project Tag / Badge */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-600/20 border border-red-500/40 text-red-300 text-xs sm:text-sm font-semibold mb-5 backdrop-blur-md">
+      <div className="relative z-10 max-w-4xl px-6 py-12 sm:py-16 md:py-20 lg:px-12 flex flex-col items-start">
+        {/* Project Tag / Indian & Global Cinema Badge */}
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-600/20 border border-red-500/40 text-red-300 text-xs sm:text-sm font-semibold mb-4 backdrop-blur-md">
           <Sparkles className="w-3.5 h-3.5 text-red-400 animate-pulse" />
-          <span>Intelligent Content-Based Filtering & Machine Learning</span>
+          <span>Indian Cinema & Global Discovery • 6-Weight ML Engine</span>
         </div>
 
         {/* Heading */}
-        <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-white leading-[1.1] mb-4">
-          Discover Your Next <br className="hidden sm:inline" />
+        <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-white leading-[1.1] mb-3">
+          Discover Blockbusters Across <br className="hidden sm:inline" />
           <span className="bg-clip-text text-transparent bg-gradient-to-r from-red-500 via-rose-400 to-amber-300">
-            Favorite Movie
+            Indian & Global Cinema
           </span>
         </h1>
 
         {/* Subtitle */}
-        <p className="text-gray-300 text-sm sm:text-lg max-w-2xl font-normal leading-relaxed mb-8">
-          Get personalized movie recommendations powered by intelligent multi-feature
-          similarity algorithms, genre matching, and data science insights.
+        <p className="text-gray-300 text-sm sm:text-base md:text-lg max-w-2xl font-normal leading-relaxed mb-6">
+          Personalized recommendations spanning Bollywood, Tollywood, Kollywood, Mollywood, Sandalwood & Hollywood — powered by multi-feature genre, language, and industry similarity algorithms.
         </p>
 
+        {/* Industry Filter Quick Tabs */}
+        <div className="w-full mb-6">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+            <span className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1 shrink-0 mr-1">
+              <Film className="w-3.5 h-3.5 text-red-500" />
+              <span>Industries:</span>
+            </span>
+            {INDUSTRIES.map((ind) => {
+              const isSelected = selectedIndustry === ind;
+              return (
+                <button
+                  key={ind}
+                  type="button"
+                  onClick={() => {
+                    if (onSelectIndustry) {
+                      onSelectIndustry(ind);
+                    } else {
+                      navigate(`/movies?industry=${encodeURIComponent(ind)}`);
+                    }
+                  }}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all whitespace-nowrap border shrink-0 ${
+                    isSelected
+                      ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-600/30'
+                      : 'bg-black/60 border-white/10 text-gray-300 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  {ind === 'Tollywood'
+                    ? 'Tollywood (Telugu)'
+                    : ind === 'Kollywood'
+                    ? 'Kollywood (Tamil)'
+                    : ind === 'Mollywood'
+                    ? 'Mollywood (Malayalam)'
+                    : ind === 'Sandalwood'
+                    ? 'Sandalwood (Kannada)'
+                    : ind}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Search Bar in Hero */}
-        <form onSubmit={handleSearchSubmit} className="w-full max-w-xl mb-8">
+        <form onSubmit={handleSearchSubmit} className="w-full max-w-xl mb-6">
           <div className="flex gap-2">
             <SearchBar
               value={searchQuery}
               onChange={onSearchChange}
-              placeholder="Search movies by title, genre, director..."
+              placeholder="Search by actor (Prabhas, SRK), director, language, industry..."
               className="shadow-lg"
             />
             <button
@@ -100,7 +145,7 @@ export const Hero: React.FC<HeroProps> = ({
             className="flex items-center gap-2 px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm sm:text-base border border-white/20 backdrop-blur-md transition-all hover:scale-105"
           >
             <Compass className="w-4 h-4 text-gray-300" />
-            <span>Explore Movies</span>
+            <span>Browse All Movies</span>
           </Link>
         </div>
 
@@ -112,7 +157,7 @@ export const Hero: React.FC<HeroProps> = ({
             </div>
             <div className="flex-1 min-w-0">
               <span className="text-[11px] font-semibold text-gray-400 block uppercase tracking-wider">
-                Trending Spotlight
+                Trending Spotlight • {featuredMovie.industry || 'Cinema'}
               </span>
               <span className="text-xs sm:text-sm font-bold text-gray-100 truncate block">
                 {featuredMovie.title} ({featuredMovie.year})

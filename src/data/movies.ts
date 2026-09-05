@@ -1,4 +1,5 @@
 import { Movie } from '../types';
+import { INDIAN_MOVIES_DATA } from './indianMovies';
 
 export const ALL_GENRES = [
   'Action',
@@ -15,7 +16,7 @@ export const ALL_GENRES = [
   'Thriller',
 ] as const;
 
-export const MOVIES_DATA: Movie[] = [
+const HOLLYWOOD_MOVIES_RAW: Omit<Movie, 'industry'>[] = [
   {
     id: 'm-1',
     title: 'Inception',
@@ -617,6 +618,16 @@ export const MOVIES_DATA: Movie[] = [
     backdrop: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1600&auto=format&fit=crop&q=80',
     trailerUrl: 'https://www.youtube.com/watch?v=HUECWi5pXLY',
   }
+];
+
+export const HOLLYWOOD_MOVIES: Movie[] = HOLLYWOOD_MOVIES_RAW.map((m) => ({
+  ...m,
+  industry: 'Hollywood',
+}));
+
+export const MOVIES_DATA: Movie[] = [
+  ...INDIAN_MOVIES_DATA,
+  ...HOLLYWOOD_MOVIES,
 ];
 
 // Fallback high-contrast poster placeholder if any external image fails to load

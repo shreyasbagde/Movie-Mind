@@ -1,3 +1,11 @@
+export type MovieIndustry =
+  | 'Bollywood'
+  | 'Tollywood'
+  | 'Kollywood'
+  | 'Mollywood'
+  | 'Sandalwood'
+  | 'Hollywood';
+
 export interface Movie {
   id: string;
   title: string;
@@ -6,6 +14,7 @@ export interface Movie {
   rating: number; // 0.0 - 10.0
   popularity: number; // 0 - 100
   language: string;
+  industry: MovieIndustry | string;
   runtime: number; // minutes
   overview: string;
   keywords: string[];
@@ -15,6 +24,7 @@ export interface Movie {
   backdrop: string;
   trailerUrl?: string;
   featured?: boolean;
+  trendingInIndia?: boolean;
 }
 
 export type MovieTypePreference = 'all' | 'recent' | 'classics' | 'highly_rated' | 'popular';
@@ -23,16 +33,19 @@ export interface UserPreferences {
   favoriteGenres: string[];
   preferredRating: number; // 1 - 10
   preferredMovieType: MovieTypePreference;
+  preferredLanguage?: string; // 'All' | 'Telugu' | 'Hindi' | 'Tamil' | 'Malayalam' | 'Kannada' | 'English'
+  preferredIndustry?: string; // 'All' | 'Bollywood' | 'Tollywood' | 'Kollywood' | 'Mollywood' | 'Sandalwood' | 'Hollywood'
   keywords?: string[];
   selectedMovieId?: string; // Optional: seed movie for content similarity
 }
 
 export interface RecommendationBreakdown {
-  genreScore: number;       // 0 - 40
-  ratingScore: number;      // 0 - 25
-  keywordScore: number;     // 0 - 15
-  popularityScore: number;  // 0 - 10
-  yearScore: number;        // 0 - 10
+  genreScore: number;       // 0 - 35 (Genre Similarity → 35%)
+  languageScore: number;    // 0 - 20 (Language Match → 20%)
+  industryScore: number;    // 0 - 15 (Industry Match → 15%)
+  ratingScore: number;      // 0 - 15 (Rating Similarity → 15%)
+  popularityScore: number;  // 0 - 10 (Popularity → 10%)
+  yearScore: number;        // 0 - 5  (Year Preference → 5%)
 }
 
 export interface RecommendationResult {
@@ -46,6 +59,7 @@ export interface RecommendationResult {
 export interface FilterOptions {
   searchQuery: string;
   genre: string;
+  industry?: string;
   minRating: number;
   releaseYearRange: [number, number];
   language: string;
@@ -78,8 +92,11 @@ export interface AnalyticsData {
   totalMovies: number;
   averageRating: number;
   mostPopularGenre: string;
+  mostPopularIndustry: string;
   highestRatedMovie: Movie;
   genresDistribution: { genre: string; count: number; avgRating: number }[];
+  industriesDistribution: { industry: string; count: number; avgRating: number }[];
+  languagesDistribution: { language: string; count: number }[];
   ratingsDistribution: { range: string; count: number }[];
   yearDistribution: { period: string; count: number }[];
 }

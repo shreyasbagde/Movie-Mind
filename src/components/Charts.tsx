@@ -10,12 +10,10 @@ import {
   Area,
   CartesianGrid,
   Cell,
+  PieChart,
+  Pie,
 } from 'recharts';
 import { AnalyticsData } from '../types';
-
-interface ChartsProps {
-  analytics: AnalyticsData;
-}
 
 const GENRE_COLORS = [
   '#f43f5e', // rose
@@ -32,6 +30,15 @@ const GENRE_COLORS = [
   '#eab308',
 ];
 
+const INDUSTRY_COLORS: Record<string, string> = {
+  Bollywood: '#ef4444',
+  Tollywood: '#f59e0b',
+  Kollywood: '#3b82f6',
+  Mollywood: '#10b981',
+  Sandalwood: '#a855f7',
+  Hollywood: '#64748b',
+};
+
 interface CustomTooltipProps {
   active?: boolean;
   payload?: Array<{ value: number; name?: string }>;
@@ -43,7 +50,7 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label, s
   if (active && payload && payload.length) {
     return (
       <div className="bg-black/80 border border-white/10 p-3 rounded-xl shadow-2xl backdrop-blur-xl text-xs">
-        <p className="font-bold text-gray-200 mb-1">{label}</p>
+        <p className="font-bold text-gray-200 mb-1">{label || payload[0].name}</p>
         <p className="text-red-400 font-semibold">
           Count: <span className="text-white font-extrabold">{payload[0].value}</span> {suffix}
         </p>
@@ -74,6 +81,56 @@ export const GenreDistributionChart: React.FC<{ data: AnalyticsData['genresDistr
               <Cell key={`cell-${index}`} fill={GENRE_COLORS[index % GENRE_COLORS.length]} />
             ))}
           </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
+export const IndustryDistributionChart: React.FC<{ data: { industry: string; count: number }[] }> = ({ data }) => {
+  return (
+    <div className="w-full h-72 sm:h-80">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+          <XAxis
+            dataKey="industry"
+            tick={{ fill: '#a1a1aa', fontSize: 11 }}
+            interval={0}
+            angle={-20}
+            textAnchor="end"
+            stroke="#3f3f46"
+          />
+          <YAxis tick={{ fill: '#a1a1aa', fontSize: 11 }} stroke="#3f3f46" allowDecimals={false} />
+          <Tooltip content={<CustomTooltip suffix="titles" />} />
+          <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+            {data.map((entry) => (
+              <Cell key={entry.industry} fill={INDUSTRY_COLORS[entry.industry] || '#e11d48'} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
+export const LanguageDistributionChart: React.FC<{ data: { language: string; count: number }[] }> = ({ data }) => {
+  return (
+    <div className="w-full h-72 sm:h-80">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+          <XAxis
+            dataKey="language"
+            tick={{ fill: '#a1a1aa', fontSize: 11 }}
+            interval={0}
+            angle={-20}
+            textAnchor="end"
+            stroke="#3f3f46"
+          />
+          <YAxis tick={{ fill: '#a1a1aa', fontSize: 11 }} stroke="#3f3f46" allowDecimals={false} />
+          <Tooltip content={<CustomTooltip suffix="titles" />} />
+          <Bar dataKey="count" fill="#3b82f6" radius={[6, 6, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

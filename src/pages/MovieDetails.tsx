@@ -19,6 +19,7 @@ import { MovieCard } from '../components/MovieCard';
 import { recommendationService } from '../services/recommendationService';
 import { useApp } from '../context/AppContext';
 import { FALLBACK_POSTER, FALLBACK_BACKDROP } from '../data/movies';
+import { getLanguageBadge, getIndustryBadge } from '../utils/movieHelpers';
 
 export const MovieDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -163,6 +164,15 @@ export const MovieDetails: React.FC = () => {
             {/* Title and Tagline */}
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-2">
+                {movie.industry && (
+                  <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-sm ${getIndustryBadge(movie.industry).bgClass} ${getIndustryBadge(movie.industry).colorClass} ${getIndustryBadge(movie.industry).borderClass}`}>
+                    {getIndustryBadge(movie.industry).label}
+                  </span>
+                )}
+                <span className="text-xs font-bold px-3 py-1 rounded-full bg-blue-600/20 text-blue-300 border border-blue-500/30 flex items-center gap-1">
+                  <span>{getLanguageBadge(movie.language).emoji}</span>
+                  <span>{movie.language} • {getLanguageBadge(movie.language).badge}</span>
+                </span>
                 {movie.genres.map((g) => (
                   <span
                     key={g}
@@ -193,11 +203,12 @@ export const MovieDetails: React.FC = () => {
                   <Clock className="w-4 h-4 text-gray-400" />
                   {movie.runtime} mins
                 </span>
-                <span className="text-gray-600">•</span>
-                <span className="flex items-center gap-1">
-                  <Globe className="w-4 h-4 text-gray-400" />
-                  {movie.language}
-                </span>
+                {movie.industry && (
+                  <>
+                    <span className="text-gray-600">•</span>
+                    <span className="text-amber-400 font-semibold">{movie.industry} Cinema</span>
+                  </>
+                )}
                 <span className="text-gray-600">•</span>
                 <span className="text-gray-400">Popularity Score: {movie.popularity}/100</span>
               </div>

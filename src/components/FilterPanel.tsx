@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
-import { SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp, Star, Calendar } from 'lucide-react';
+import { SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp, Star, Calendar, Film } from 'lucide-react';
 import { FilterOptions } from '../types';
 import { ALL_GENRES } from '../data/movies';
+import { INDUSTRIES, LANGUAGES, getLanguageBadge } from '../utils/movieHelpers';
 
 interface FilterPanelProps {
   filters: FilterOptions;
   onChange: (newFilters: FilterOptions) => void;
   totalResults: number;
 }
-
-const LANGUAGES = ['All', 'English', 'Japanese', 'Korean', 'Spanish', 'French'];
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, onChange, totalResults }) => {
   const [isOpenMobile, setIsOpenMobile] = useState(false);
@@ -18,6 +17,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, onChange, tot
     onChange({
       searchQuery: '',
       genre: 'All',
+      industry: 'All',
       minRating: 0,
       releaseYearRange: [1940, 2026],
       language: 'All',
@@ -27,6 +27,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, onChange, tot
 
   const hasActiveFilters =
     filters.genre !== 'All' ||
+    (filters.industry && filters.industry !== 'All') ||
     filters.minRating > 0 ||
     filters.language !== 'All' ||
     filters.releaseYearRange[0] > 1940 ||
@@ -35,6 +36,41 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, onChange, tot
 
   return (
     <div className="w-full bg-white/5 border border-white/10 backdrop-blur-lg rounded-2xl p-4 sm:p-5 mb-6 shadow-xl">
+      {/* Industry Category Tabs Row */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-3 border-b border-white/10 scrollbar-none">
+        <span className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1 shrink-0 mr-1">
+          <Film className="w-3.5 h-3.5 text-red-500" />
+          <span>Industry:</span>
+        </span>
+        {INDUSTRIES.map((ind) => {
+          const isSelected = (filters.industry || 'All') === ind;
+          const displayLabel =
+            ind === 'Tollywood'
+              ? 'Tollywood (Telugu)'
+              : ind === 'Kollywood'
+              ? 'Kollywood (Tamil)'
+              : ind === 'Mollywood'
+              ? 'Mollywood (Malayalam)'
+              : ind === 'Sandalwood'
+              ? 'Sandalwood (Kannada)'
+              : ind;
+
+          return (
+            <button
+              key={ind}
+              onClick={() => onChange({ ...filters, industry: ind })}
+              className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all whitespace-nowrap border shrink-0 ${
+                isSelected
+                  ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-600/30'
+                  : 'bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              {displayLabel}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Header bar: title + toggle on mobile + total count */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -69,9 +105,11 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, onChange, tot
       </div>
 
       {/* Filter Controls (Collapsible on mobile) */}
-      <div className={`mt-4 pt-4 border-t border-white/10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 ${
-        isOpenMobile ? 'block' : 'hidden md:grid'
-      }`}>
+      <div
+        className={`mt-4 pt-4 border-t border-white/10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 ${
+          isOpenMobile ? 'block' : 'hidden md:grid'
+        }`}
+      >
         {/* Genre Selector */}
         <div>
           <label className="block text-xs font-semibold text-gray-300 mb-1.5">Genre</label>
@@ -106,8 +144,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, onChange, tot
             <option value={0}>Any Rating</option>
             <option value={7}>7.0+ Good</option>
             <option value={8}>8.0+ Great</option>
-            <option value={8.5}>8.5+ Exceptional</option>
-            <option value={9}>9.0+ Masterpiece</option>
+            <option value={8.5}>8.5+ Masterpiece</option>
           </select>
         </div>
 
@@ -165,23 +202,31 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, onChange, tot
       </div>
 
       {/* Language quick chips */}
-      <div className={`mt-3 pt-3 border-t border-white/10 flex flex-wrap items-center gap-2 ${
-        isOpenMobile ? 'flex' : 'hidden md:flex'
-      }`}>
+      <div
+        className={`mt-3 pt-3 border-t border-white/10 flex flex-wrap items-center gap-2 ${
+          isOpenMobile ? 'flex' : 'hidden md:flex'
+        }`}
+      >
         <span className="text-xs text-gray-400 font-medium mr-1">Language:</span>
-        {LANGUAGES.map((lang) => (
-          <button
-            key={lang}
-            onClick={() => onChange({ ...filters, language: lang })}
-            className={`text-xs px-2.5 py-1 rounded-lg transition-all font-medium border ${
-              filters.language === lang
-                ? 'bg-red-600 border-red-500 text-white shadow-md shadow-red-600/20'
-                : 'bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            {lang}
-          </button>
-        ))}
+        {LANGUAGES.map((lang) => {
+          const isSelected = filters.language === lang;
+          const badge = lang !== 'All' ? getLanguageBadge(lang) : null;
+
+          return (
+            <button
+              key={lang}
+              onClick={() => onChange({ ...filters, language: lang })}
+              className={`text-xs px-2.5 py-1 rounded-lg transition-all font-medium border flex items-center gap-1.5 ${
+                isSelected
+                  ? 'bg-red-600 border-red-500 text-white shadow-md shadow-red-600/20'
+                  : 'bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              {badge && <span>{badge.emoji}</span>}
+              <span>{lang}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
