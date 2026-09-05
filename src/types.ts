@@ -53,8 +53,10 @@ export interface FilterOptions {
 }
 
 export interface UserProfile {
+  id?: string;
   name: string;
   email: string;
+  avatar?: string;
   favoriteGenres: string[];
   favoriteMovieIds: string[];
   recommendationHistory: {
@@ -63,6 +65,13 @@ export interface UserProfile {
     recommendedMovieIds: string[];
   }[];
   joinedDate: string;
+}
+
+export interface AuthModalState {
+  isOpen: boolean;
+  mode: 'signin' | 'signup';
+  pendingMovieId?: string;
+  pendingMovieTitle?: string;
 }
 
 export interface AnalyticsData {

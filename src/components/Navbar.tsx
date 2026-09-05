@@ -11,13 +11,15 @@ import {
   X,
   Search,
   Compass,
+  LogIn,
+  LogOut,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const Navbar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { favorites, setIsAiModalOpen } = useApp();
+  const { favorites, setIsAiModalOpen, currentUser, isLoggedIn, openAuthModal, logout } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickSearch, setQuickSearch] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -130,18 +132,56 @@ export const Navbar: React.FC = () => {
               </span>
             </button>
 
-            {/* User Profile Link */}
-            <Link
-              to="/profile"
-              className={`p-2.5 rounded-xl border backdrop-blur-md transition-all ${
-                location.pathname === '/profile'
-                  ? 'bg-red-600/15 border-red-500/40 text-red-500'
-                  : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10'
-              }`}
-              title="User Profile & Preferences"
-            >
-              <User className="w-4 h-4" />
-            </Link>
+            {/* Authentication Control: Sign In Button or User Menu */}
+            {!isLoggedIn ? (
+              <button
+                id="navbar-btn-signin"
+                onClick={() => openAuthModal({ mode: 'signin' })}
+                className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white border border-white/15 text-xs sm:text-sm font-bold backdrop-blur-md shadow-lg shadow-black/30 transition-all hover:scale-105 active:scale-95"
+                title="Sign in to save movies to your favorites list"
+              >
+                <LogIn className="w-3.5 h-3.5 text-red-500" />
+                <span>Sign In</span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-1 sm:gap-2">
+                <Link
+                  to="/profile"
+                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border backdrop-blur-md transition-all ${
+                    location.pathname === '/profile'
+                      ? 'bg-red-600/15 border-red-500/40 text-red-500'
+                      : 'bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10'
+                  }`}
+                  title={`Logged in as ${currentUser?.name}`}
+                >
+                  <div className="w-6 h-6 rounded-lg bg-red-600/25 border border-red-500/40 text-red-400 font-bold flex items-center justify-center text-xs">
+                    {currentUser?.avatar ? (
+                      <img
+                        src={currentUser.avatar}
+                        alt={currentUser.name}
+                        className="w-full h-full object-cover rounded-lg"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      currentUser?.name?.charAt(0).toUpperCase() || 'U'
+                    )}
+                  </div>
+                  <span className="hidden xl:inline text-xs font-semibold max-w-[90px] truncate">
+                    {currentUser?.name}
+                  </span>
+                </Link>
+
+                <button
+                  id="navbar-btn-signout"
+                  onClick={logout}
+                  className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-red-400 hover:bg-white/10 backdrop-blur-md transition-colors"
+                  title="Sign Out"
+                  aria-label="Sign Out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             {/* Mobile Search Toggle */}
             <button
@@ -182,7 +222,7 @@ export const Navbar: React.FC = () => {
 
         {/* Mobile Hamburger Menu Drawer */}
         {mobileMenuOpen && (
-          <div className="lg:hidden py-4 border-t border-white/10 space-y-1 bg-black/40 backdrop-blur-xl">
+          <div className="lg:hidden py-4 border-t border-white/10 space-y-2 bg-black/40 backdrop-blur-xl">
             {navLinks.map((link) => {
               const active = isActive(link.path);
               const Icon = link.icon;
@@ -209,6 +249,44 @@ export const Navbar: React.FC = () => {
                 </Link>
               );
             })}
+
+            {/* Mobile Auth Button */}
+            <div className="pt-3 mt-2 border-t border-white/10 px-2">
+              {!isLoggedIn ? (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    openAuthModal({ mode: 'signin' });
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm shadow-lg shadow-red-600/25 transition-all"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Sign In to Save Favorites</span>
+                </button>
+              ) : (
+                <div className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/10">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-red-600/20 border border-red-500/30 text-red-400 font-bold flex items-center justify-center text-xs">
+                      {currentUser?.name?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="text-left">
+                      <p className="text-xs font-bold text-white leading-tight">{currentUser?.name}</p>
+                      <p className="text-[10px] text-gray-400 truncate max-w-[150px]">{currentUser?.email}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      logout();
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-xs text-gray-300 hover:text-red-400 transition-colors"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

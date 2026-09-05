@@ -42,6 +42,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ result, 
         <img
           src={imgSrc}
           alt={movie.title}
+          referrerPolicy="no-referrer"
           onError={() => setImgSrc(FALLBACK_POSTER)}
           loading="lazy"
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"

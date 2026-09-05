@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   User,
   Heart,
-  Sparkles,
   History,
   Save,
   CheckCircle2,
   Calendar,
-  Film,
-  RotateCcw,
+  LogIn,
+  LogOut,
+  UserPlus,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ALL_GENRES, MOVIES_DATA } from '../data/movies';
@@ -21,12 +21,22 @@ export const Profile: React.FC = () => {
     updateUserProfile,
     favoriteMovies,
     recommendationHistory,
+    currentUser,
+    isLoggedIn,
+    openAuthModal,
+    logout,
   } = useApp();
 
   const [name, setName] = useState(userProfile.name);
   const [email, setEmail] = useState(userProfile.email);
   const [selectedGenres, setSelectedGenres] = useState<string[]>(userProfile.favoriteGenres);
   const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    setName(userProfile.name);
+    setEmail(userProfile.email);
+    setSelectedGenres(userProfile.favoriteGenres);
+  }, [userProfile]);
 
   const toggleGenre = (genre: string) => {
     if (selectedGenres.includes(genre)) {
@@ -40,6 +50,10 @@ export const Profile: React.FC = () => {
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isLoggedIn) {
+      openAuthModal({ mode: 'signin' });
+      return;
+    }
     updateUserProfile({
       name,
       email,
@@ -49,46 +63,100 @@ export const Profile: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-zinc-900 border border-zinc-800 p-6 sm:p-8">
+      <div className="relative overflow-hidden rounded-3xl bg-white/5 border border-white/10 p-6 sm:p-8 backdrop-blur-xl shadow-2xl">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-rose-600 via-rose-500 to-amber-500 flex items-center justify-center text-white text-3xl font-black shadow-xl shadow-rose-950/40">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-red-600 via-red-500 to-amber-500 flex items-center justify-center text-white text-3xl font-black shadow-xl shadow-red-600/30 border border-white/10">
             {name ? name.charAt(0).toUpperCase() : 'U'}
           </div>
 
           <div className="flex-1 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl sm:text-3xl font-black text-white">{name}</h1>
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">
-                Data Science Student Profile
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-red-600/20 text-red-300 font-bold border border-red-500/30">
+                {isLoggedIn ? 'Active CineSuggest Member' : 'Guest Explorer'}
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-zinc-400">{email}</p>
-            <div className="flex items-center gap-4 text-xs text-zinc-500 pt-1">
+            <p className="text-xs sm:text-sm text-gray-400">{email || 'Not signed in'}</p>
+            <div className="flex items-center gap-4 text-xs text-gray-400 pt-1">
               <span className="flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" /> Joined {userProfile.joinedDate}
               </span>
               <span>•</span>
-              <span className="text-rose-400 font-semibold">{favoriteMovies.length} Favorites</span>
+              <span className="text-red-400 font-semibold">{favoriteMovies.length} Favorites</span>
             </div>
           </div>
 
-          <button
-            onClick={() => setIsEditing(!isEditing)}
-            className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs sm:text-sm font-semibold border border-zinc-700 transition-colors"
-          >
-            {isEditing ? 'Cancel Editing' : 'Edit Profile'}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {!isLoggedIn ? (
+              <>
+                <button
+                  id="profile-btn-signin"
+                  onClick={() => openAuthModal({ mode: 'signin' })}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-red-600/25 transition-all hover:scale-105 active:scale-95"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Sign In</span>
+                </button>
+                <button
+                  id="profile-btn-signup"
+                  onClick={() => openAuthModal({ mode: 'signup' })}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs sm:text-sm font-semibold border border-white/10 backdrop-blur-md transition-all hover:scale-105"
+                >
+                  <UserPlus className="w-4 h-4 text-gray-300" />
+                  <span>Create Account</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setIsEditing(!isEditing)}
+                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs sm:text-sm font-semibold border border-white/10 backdrop-blur-md transition-all"
+                >
+                  {isEditing ? 'Cancel Editing' : 'Edit Profile'}
+                </button>
+                <button
+                  onClick={logout}
+                  className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-red-400 text-xs sm:text-sm font-semibold border border-white/10 backdrop-blur-md transition-colors"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign Out</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Profile & Preferences Form (Visible or Editable) */}
-      <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-6 sm:p-8 space-y-6">
-        <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+      {/* Guest Sign In Callout if not logged in */}
+      {!isLoggedIn && (
+        <div className="p-6 rounded-2xl bg-red-600/10 border border-red-500/20 backdrop-blur-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <LogIn className="w-4 h-4 text-red-400" />
+              <span>Save your custom favorites and preferences across sessions</span>
+            </h3>
+            <p className="text-xs text-gray-300">
+              Sign in with your account so your favorite movies and personalized AI recommendations are always ready.
+            </p>
+          </div>
+          <button
+            onClick={() => openAuthModal({ mode: 'signin' })}
+            className="flex-shrink-0 px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-lg shadow-red-600/25 transition-all hover:scale-105"
+          >
+            Sign In Now
+          </button>
+        </div>
+      )}
+
+      {/* Profile & Preferences Form */}
+      <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-8 space-y-6 backdrop-blur-xl shadow-xl">
+        <div className="flex items-center justify-between border-b border-white/10 pb-4">
           <div>
             <h2 className="text-lg sm:text-xl font-bold text-white">Taste Preferences & Credentials</h2>
-            <p className="text-xs sm:text-sm text-zinc-400">
+            <p className="text-xs sm:text-sm text-gray-400">
               Defines the baseline vector for default recommendation suggestions.
             </p>
           </div>
@@ -97,7 +165,7 @@ export const Profile: React.FC = () => {
         <form onSubmit={handleSaveProfile} className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">
                 Full Name
               </label>
               <input
@@ -105,12 +173,12 @@ export const Profile: React.FC = () => {
                 disabled={!isEditing}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 disabled:opacity-60 rounded-xl px-4 py-2.5 text-sm text-white focus:border-rose-500 outline-none"
+                className="w-full bg-white/5 border border-white/10 disabled:opacity-60 rounded-xl px-4 py-2.5 text-sm text-white focus:border-red-500 outline-none backdrop-blur-md"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">
                 Email Address
               </label>
               <input
@@ -118,14 +186,14 @@ export const Profile: React.FC = () => {
                 disabled={!isEditing}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 disabled:opacity-60 rounded-xl px-4 py-2.5 text-sm text-white focus:border-rose-500 outline-none"
+                className="w-full bg-white/5 border border-white/10 disabled:opacity-60 rounded-xl px-4 py-2.5 text-sm text-white focus:border-red-500 outline-none backdrop-blur-md"
               />
             </div>
           </div>
 
           {/* Favorite Genres Selection */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">
               Favorite Genres
             </label>
             <div className="flex flex-wrap gap-2">
@@ -139,8 +207,8 @@ export const Profile: React.FC = () => {
                     onClick={() => toggleGenre(genre)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border flex items-center gap-1 ${
                       active
-                        ? 'bg-rose-600 border-rose-500 text-white'
-                        : 'bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:text-white'
+                        ? 'bg-red-600 border-red-500 text-white shadow-md shadow-red-600/30'
+                        : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10'
                     }`}
                   >
                     {active && <CheckCircle2 className="w-3 h-3" />}
@@ -155,7 +223,7 @@ export const Profile: React.FC = () => {
             <div className="pt-2">
               <button
                 type="submit"
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-bold shadow-lg shadow-rose-950/40 transition-colors"
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold shadow-lg shadow-red-600/30 transition-all hover:scale-105"
               >
                 <Save className="w-4 h-4" />
                 <span>Save Profile Changes</span>
@@ -169,18 +237,18 @@ export const Profile: React.FC = () => {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Heart className="w-5 h-5 text-rose-500 fill-current" />
+            <Heart className="w-5 h-5 text-red-500 fill-current" />
             <h2 className="text-xl font-bold text-white">Favorite Movies Collection</h2>
           </div>
-          <Link to="/favorites" className="text-xs font-semibold text-rose-400 hover:underline">
+          <Link to="/favorites" className="text-xs font-semibold text-red-400 hover:underline">
             Manage All ({favoriteMovies.length})
           </Link>
         </div>
 
         {favoriteMovies.length === 0 ? (
-          <div className="p-8 text-center bg-zinc-900/40 rounded-2xl border border-zinc-800 text-zinc-400 text-sm">
+          <div className="p-8 text-center bg-white/5 rounded-2xl border border-white/10 text-gray-400 text-sm backdrop-blur-md">
             No favorite movies saved yet.{' '}
-            <Link to="/movies" className="text-rose-400 font-semibold hover:underline">
+            <Link to="/movies" className="text-red-400 font-semibold hover:underline">
               Browse movies to add some!
             </Link>
           </div>
@@ -201,9 +269,9 @@ export const Profile: React.FC = () => {
         </div>
 
         {recommendationHistory.length === 0 ? (
-          <div className="p-8 text-center bg-zinc-900/40 rounded-2xl border border-zinc-800 text-zinc-400 text-sm">
+          <div className="p-8 text-center bg-white/5 rounded-2xl border border-white/10 text-gray-400 text-sm backdrop-blur-md">
             You haven&rsquo;t generated any custom recommendations yet.{' '}
-            <Link to="/recommendations" className="text-rose-400 font-semibold hover:underline">
+            <Link to="/recommendations" className="text-red-400 font-semibold hover:underline">
               Try the recommendation engine now!
             </Link>
           </div>
@@ -216,14 +284,14 @@ export const Profile: React.FC = () => {
               return (
                 <div
                   key={idx}
-                  className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 backdrop-blur-md"
                 >
                   <div>
-                    <div className="flex items-center gap-2 text-xs text-zinc-400 mb-1">
+                    <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
                       <Calendar className="w-3 h-3" />
                       <span>{new Date(item.timestamp).toLocaleString()}</span>
                       <span>•</span>
-                      <span className="text-rose-400 font-medium">
+                      <span className="text-red-400 font-medium">
                         Rating &ge; {item.preferences.preferredRating}
                       </span>
                     </div>
@@ -231,7 +299,7 @@ export const Profile: React.FC = () => {
                       {item.preferences.favoriteGenres.map((g) => (
                         <span
                           key={g}
-                          className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-medium"
+                          className="text-[10px] px-2 py-0.5 rounded bg-white/10 text-gray-300 font-medium border border-white/5"
                         >
                           {g}
                         </span>
@@ -245,9 +313,14 @@ export const Profile: React.FC = () => {
                         key={m.id}
                         to={`/movie/${m.id}`}
                         title={m.title}
-                        className="w-10 h-14 rounded overflow-hidden bg-zinc-950 flex-shrink-0 border border-zinc-800 hover:scale-105 transition-transform"
+                        className="w-10 h-14 rounded overflow-hidden bg-black/60 flex-shrink-0 border border-white/10 hover:scale-105 transition-transform"
                       >
-                        <img src={m.poster} alt={m.title} className="w-full h-full object-cover" />
+                        <img
+                          src={m.poster}
+                          alt={m.title}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                        />
                       </Link>
                     ))}
                   </div>

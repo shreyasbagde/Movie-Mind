@@ -5,6 +5,7 @@ import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { ToastContainer } from './components/ToastContainer';
 import { AiAdvisorModal } from './components/AiAdvisorModal';
+import { AuthModal } from './components/AuthModal';
 
 // Pages
 import { Home } from './pages/Home';
@@ -49,6 +50,7 @@ export default function App() {
 
           {/* Interactive Modals and Toasts */}
           <AiAdvisorModal />
+          <AuthModal />
           <ToastContainer />
         </div>
       </BrowserRouter>

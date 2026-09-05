@@ -92,6 +92,7 @@ export const MovieDetails: React.FC = () => {
         <img
           src={backdropSrc}
           alt={movie.title}
+          referrerPolicy="no-referrer"
           onError={() => setBackdropSrc(FALLBACK_BACKDROP)}
           className="w-full h-full object-cover object-center opacity-35 filter brightness-90"
         />
@@ -119,6 +120,7 @@ export const MovieDetails: React.FC = () => {
               <img
                 src={posterSrc}
                 alt={movie.title}
+                referrerPolicy="no-referrer"
                 onError={() => setPosterSrc(FALLBACK_POSTER)}
                 className="w-full h-full object-cover"
               />

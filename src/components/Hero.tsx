@@ -36,6 +36,7 @@ export const Hero: React.FC<HeroProps> = ({
         <img
           src={backdropUrl}
           alt="Hero Background"
+          referrerPolicy="no-referrer"
           className="w-full h-full object-cover object-center opacity-30 scale-105 transform duration-1000 ease-out"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#050505] via-[#050505]/80 to-transparent" />

@@ -26,6 +26,7 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, compact = false }) 
         <img
           src={imgSrc}
           alt={movie.title}
+          referrerPolicy="no-referrer"
           onError={() => setImgSrc(FALLBACK_POSTER)}
           loading="lazy"
           className="h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-105"

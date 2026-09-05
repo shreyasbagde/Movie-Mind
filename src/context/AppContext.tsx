@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Movie, UserPreferences, UserProfile, RecommendationResult } from '../types';
+import { Movie, UserPreferences, UserProfile, RecommendationResult, AuthModalState } from '../types';
 import { MOVIES_DATA } from '../data/movies';
 
 export interface ToastMessage {
@@ -9,6 +9,13 @@ export interface ToastMessage {
 }
 
 interface AppContextType {
+  currentUser: UserProfile | null;
+  isLoggedIn: boolean;
+  login: (profile: Partial<UserProfile> & { name: string; email: string }) => void;
+  logout: () => void;
+  authModal: AuthModalState;
+  openAuthModal: (options?: Partial<AuthModalState>) => void;
+  closeAuthModal: () => void;
   favorites: string[];
   favoriteMovies: Movie[];
   toggleFavorite: (movieId: string) => void;
@@ -32,39 +39,64 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   preferredMovieType: 'highly_rated',
 };
 
-const DEFAULT_PROFILE: UserProfile = {
-  name: 'Alex Morgan',
-  email: 'alex.morgan@university.edu',
-  favoriteGenres: ['Sci-Fi', 'Action', 'Drama'],
-  favoriteMovieIds: ['m-1', 'm-2', 'm-3'],
+const GUEST_PROFILE: UserProfile = {
+  name: 'Guest Explorer',
+  email: '',
+  favoriteGenres: ['Sci-Fi', 'Action'],
+  favoriteMovieIds: [],
   recommendationHistory: [],
-  joinedDate: 'September 2026',
+  joinedDate: 'Just now',
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const FAVORITES_KEY = 'moviesuggest_favorites_v1';
-const PROFILE_KEY = 'moviesuggest_profile_v1';
+const SESSION_KEY = 'moviesuggest_user_session_v1';
 const PREFS_KEY = 'moviesuggest_preferences_v1';
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Load Favorites from LocalStorage
-  const [favorites, setFavorites] = useState<string[]>(() => {
+  // Authentication State
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     try {
-      const saved = localStorage.getItem(FAVORITES_KEY);
-      return saved ? JSON.parse(saved) : DEFAULT_PROFILE.favoriteMovieIds;
+      const session = localStorage.getItem(SESSION_KEY);
+      return session ? JSON.parse(session) : null;
     } catch {
-      return DEFAULT_PROFILE.favoriteMovieIds;
+      return null;
     }
   });
 
-  // Load Profile from LocalStorage
-  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
+  // Auth Modal State
+  const [authModal, setAuthModal] = useState<AuthModalState>({
+    isOpen: false,
+    mode: 'signin',
+  });
+
+  const openAuthModal = (options?: Partial<AuthModalState>) => {
+    setAuthModal({
+      isOpen: true,
+      mode: options?.mode || 'signin',
+      pendingMovieId: options?.pendingMovieId,
+      pendingMovieTitle: options?.pendingMovieTitle,
+    });
+  };
+
+  const closeAuthModal = () => {
+    setAuthModal((prev) => ({ ...prev, isOpen: false }));
+  };
+
+  // Favorites state tied to current user session
+  const [favorites, setFavorites] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem(PROFILE_KEY);
-      return saved ? JSON.parse(saved) : DEFAULT_PROFILE;
+      const session = localStorage.getItem(SESSION_KEY);
+      if (session) {
+        const parsed: UserProfile = JSON.parse(session);
+        const userFavsKey = `moviesuggest_favs_${parsed.email}`;
+        const savedFavs = localStorage.getItem(userFavsKey);
+        if (savedFavs) return JSON.parse(savedFavs);
+        return parsed.favoriteMovieIds || [];
+      }
+      return [];
     } catch {
-      return DEFAULT_PROFILE;
+      return [];
     }
   });
 
@@ -81,23 +113,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
-  // Sync favorites to localStorage
+  // Sync favorites whenever they change for a logged-in user
   useEffect(() => {
-    try {
-      localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
-    } catch (e) {
-      console.error('Failed to persist favorites', e);
-    }
-  }, [favorites]);
+    if (currentUser) {
+      try {
+        const userFavsKey = `moviesuggest_favs_${currentUser.email}`;
+        localStorage.setItem(userFavsKey, JSON.stringify(favorites));
 
-  // Sync profile to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(PROFILE_KEY, JSON.stringify(userProfile));
-    } catch (e) {
-      console.error('Failed to persist profile', e);
+        // Also update currentUser object
+        const updatedUser = { ...currentUser, favoriteMovieIds: favorites };
+        localStorage.setItem(SESSION_KEY, JSON.stringify(updatedUser));
+      } catch (e) {
+        console.error('Failed to persist user favorites', e);
+      }
     }
-  }, [userProfile]);
+  }, [favorites, currentUser]);
 
   // Sync preferences to localStorage
   useEffect(() => {
@@ -113,16 +143,78 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setToasts((prev) => [...prev, { id, type, message }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3200);
+    }, 3500);
   };
 
   const removeToast = (id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  const login = (profile: Partial<UserProfile> & { name: string; email: string }) => {
+    const userEmail = profile.email.trim().toLowerCase();
+    let userFavs: string[] = [];
+
+    try {
+      const savedFavs = localStorage.getItem(`moviesuggest_favs_${userEmail}`);
+      if (savedFavs) {
+        userFavs = JSON.parse(savedFavs);
+      } else if (profile.favoriteMovieIds && profile.favoriteMovieIds.length > 0) {
+        userFavs = profile.favoriteMovieIds;
+      }
+    } catch {
+      userFavs = profile.favoriteMovieIds || [];
+    }
+
+    // If there was a pending favorite click, add it!
+    if (authModal.pendingMovieId && !userFavs.includes(authModal.pendingMovieId)) {
+      userFavs = [...userFavs, authModal.pendingMovieId];
+      addToast(
+        `Welcome, ${profile.name}! Added "${authModal.pendingMovieTitle || 'Movie'}" to your Favorites.`,
+        'success'
+      );
+    } else {
+      addToast(`Welcome back, ${profile.name}! You are now signed in.`, 'success');
+    }
+
+    const sessionUser: UserProfile = {
+      id: profile.id || `u-${Date.now()}`,
+      name: profile.name,
+      email: profile.email,
+      avatar: profile.avatar,
+      favoriteGenres: profile.favoriteGenres || ['Sci-Fi', 'Action'],
+      favoriteMovieIds: userFavs,
+      recommendationHistory: profile.recommendationHistory || [],
+      joinedDate: profile.joinedDate || 'September 2026',
+    };
+
+    setCurrentUser(sessionUser);
+    setFavorites(userFavs);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
+    localStorage.setItem(`moviesuggest_favs_${userEmail}`, JSON.stringify(userFavs));
+    closeAuthModal();
+  };
+
+  const logout = () => {
+    setCurrentUser(null);
+    setFavorites([]);
+    localStorage.removeItem(SESSION_KEY);
+    addToast('You have been signed out.', 'info');
+  };
+
   const toggleFavorite = (movieId: string) => {
     const movie = MOVIES_DATA.find((m) => m.id === movieId);
     const movieTitle = movie ? `"${movie.title}"` : 'Movie';
+
+    // Guard: If user is not logged in, prompt sign in
+    if (!currentUser) {
+      openAuthModal({
+        mode: 'signin',
+        pendingMovieId: movieId,
+        pendingMovieTitle: movie?.title,
+      });
+      addToast('Sign in to add movies to your Favorites List', 'info');
+      return;
+    }
 
     setFavorites((prev) => {
       const exists = prev.includes(movieId);
@@ -134,13 +226,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return [...prev, movieId];
       }
     });
-
-    setUserProfile((prev) => ({
-      ...prev,
-      favoriteMovieIds: prev.favoriteMovieIds.includes(movieId)
-        ? prev.favoriteMovieIds.filter((id) => id !== movieId)
-        : [...prev.favoriteMovieIds, movieId],
-    }));
   };
 
   const isFavorite = (movieId: string) => favorites.includes(movieId);
@@ -148,34 +233,53 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const favoriteMovies = MOVIES_DATA.filter((m) => favorites.includes(m.id));
 
   const updateUserProfile = (updates: Partial<UserProfile>) => {
-    setUserProfile((prev) => ({ ...prev, ...updates }));
+    if (!currentUser) return;
+    const updated = { ...currentUser, ...updates };
+    setCurrentUser(updated);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
     addToast('Profile updated successfully!', 'success');
   };
 
   const updateUserPreferences = (prefs: UserPreferences) => {
     setUserPreferences(prefs);
-    setUserProfile((prev) => ({
-      ...prev,
-      favoriteGenres: prefs.favoriteGenres,
-    }));
+    if (currentUser) {
+      const updated = {
+        ...currentUser,
+        favoriteGenres: prefs.favoriteGenres,
+      };
+      setCurrentUser(updated);
+      localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
+    }
     addToast('Recommendation preferences updated!', 'success');
   };
 
   const addRecommendationHistory = (prefs: UserPreferences, results: RecommendationResult[]) => {
+    if (!currentUser) return;
     const entry = {
       timestamp: Date.now(),
       preferences: prefs,
       recommendedMovieIds: results.map((r) => r.movie.id),
     };
-    setUserProfile((prev) => ({
-      ...prev,
-      recommendationHistory: [entry, ...prev.recommendationHistory.slice(0, 9)], // Keep top 10
-    }));
+    const updated = {
+      ...currentUser,
+      recommendationHistory: [entry, ...currentUser.recommendationHistory.slice(0, 9)],
+    };
+    setCurrentUser(updated);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
   };
+
+  const userProfile = currentUser || GUEST_PROFILE;
 
   return (
     <AppContext.Provider
       value={{
+        currentUser,
+        isLoggedIn: currentUser !== null,
+        login,
+        logout,
+        authModal,
+        openAuthModal,
+        closeAuthModal,
         favorites,
         favoriteMovies,
         toggleFavorite,
@@ -205,3 +309,4 @@ export const useApp = () => {
   }
   return context;
 };
+
