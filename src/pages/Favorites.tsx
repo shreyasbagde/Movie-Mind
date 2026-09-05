@@ -7,18 +7,12 @@ import { useApp } from '../context/AppContext';
 export const Favorites: React.FC = () => {
   const { favoriteMovies, favorites, toggleFavorite, addToast, isLoggedIn, openAuthModal, currentUser } = useApp();
 
-  const [confirmClear, setConfirmClear] = React.useState(false);
-
   const handleClearAll = () => {
     if (favorites.length === 0) return;
-    if (!confirmClear) {
-      setConfirmClear(true);
-      setTimeout(() => setConfirmClear(false), 4000);
-      return;
+    if (window.confirm('Are you sure you want to remove all movies from your favorites?')) {
+      favorites.forEach((id) => toggleFavorite(id));
+      addToast('Cleared all favorites', 'info');
     }
-    favorites.forEach((id) => toggleFavorite(id));
-    setConfirmClear(false);
-    addToast('Cleared all favorites', 'info');
   };
 
   return (
@@ -52,14 +46,10 @@ export const Favorites: React.FC = () => {
 
             <button
               onClick={handleClearAll}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold backdrop-blur-md transition-all ${
-                confirmClear
-                  ? 'bg-red-600/30 border-red-500 text-red-300 animate-pulse'
-                  : 'bg-white/5 border-white/10 text-gray-400 hover:text-red-400'
-              }`}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-red-400 text-xs font-semibold backdrop-blur-md transition-colors"
             >
               <Trash2 className="w-4 h-4" />
-              <span>{confirmClear ? 'Click to Confirm Clear' : 'Clear All'}</span>
+              <span>Clear All</span>
             </button>
           </div>
         )}

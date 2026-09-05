@@ -1,24 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Movie, UserPreferences, UserProfile, RecommendationResult, AuthModalState } from '../types';
 import { MOVIES_DATA } from '../data/movies';
-import {
-  auth,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  googleProvider,
-  signInWithPopup,
-  updateProfile,
-} from '../lib/firebase';
-import {
-  saveUserProfileToFirestore,
-  getUserProfileFromFirestore,
-  addFavoriteToFirestore,
-  removeFavoriteFromFirestore,
-  subscribeToUserFavorites,
-  saveRecommendationHistoryToFirestore,
-} from '../services/firebaseService';
 
 export interface ToastMessage {
   id: string;
@@ -30,9 +12,6 @@ interface AppContextType {
   currentUser: UserProfile | null;
   isLoggedIn: boolean;
   login: (profile: Partial<UserProfile> & { name: string; email: string }) => void;
-  signInWithFirebase: (email: string, pass: string) => Promise<void>;
-  signUpWithFirebase: (email: string, pass: string, name: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
   logout: () => void;
   authModal: AuthModalState;
   openAuthModal: (options?: Partial<AuthModalState>) => void;
@@ -104,7 +83,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAuthModal((prev) => ({ ...prev, isOpen: false }));
   };
 
-  // Favorites state
+  // Favorites state tied to current user session
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
       const session = localStorage.getItem(SESSION_KEY);
@@ -134,75 +113,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
-  const addToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, type, message }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3500);
-  };
-
-  const removeToast = (id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
-
-  // Listen to Firebase Auth state changes
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-      if (fbUser) {
-        try {
-          // Fetch from Firestore
-          const remoteProfile = await getUserProfileFromFirestore(fbUser.uid);
-          const profile: UserProfile = {
-            id: fbUser.uid,
-            name: remoteProfile?.name || fbUser.displayName || fbUser.email?.split('@')[0] || 'Cinephile',
-            email: fbUser.email || '',
-            avatar: fbUser.photoURL || remoteProfile?.avatar || undefined,
-            favoriteGenres: remoteProfile?.favoriteGenres || ['Sci-Fi', 'Action'],
-            favoriteMovieIds: remoteProfile?.favoriteMovieIds || [],
-            recommendationHistory: remoteProfile?.recommendationHistory || [],
-            joinedDate: remoteProfile?.joinedDate || 'September 2026',
-          };
-
-          setCurrentUser(profile);
-          setFavorites(profile.favoriteMovieIds || []);
-          localStorage.setItem(SESSION_KEY, JSON.stringify(profile));
-        } catch (e) {
-          console.warn('Failed to sync user from Firestore:', e);
-        }
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // Real-time Firestore sync for favorites when user is logged in
-  useEffect(() => {
-    if (currentUser && currentUser.id) {
-      const unsubscribe = subscribeToUserFavorites(
-        currentUser.id,
-        (favMovieIds) => {
-          if (favMovieIds.length > 0) {
-            setFavorites(favMovieIds);
-          }
-        },
-        (err) => {
-          console.debug('Real-time favorites sync note:', err.message);
-        }
-      );
-      return () => {
-        if (unsubscribe) unsubscribe();
-      };
-    }
-  }, [currentUser?.id]);
-
-  // Sync favorites to localStorage for fast local access
+  // Sync favorites whenever they change for a logged-in user
   useEffect(() => {
     if (currentUser) {
       try {
         const userFavsKey = `moviesuggest_favs_${currentUser.email}`;
         localStorage.setItem(userFavsKey, JSON.stringify(favorites));
 
+        // Also update currentUser object
         const updatedUser = { ...currentUser, favoriteMovieIds: favorites };
         localStorage.setItem(SESSION_KEY, JSON.stringify(updatedUser));
       } catch (e) {
@@ -220,131 +138,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [userPreferences]);
 
-  // Firebase Email/Password Sign-In
-  const signInWithFirebase = async (email: string, pass: string) => {
-    try {
-      const cred = await signInWithEmailAndPassword(auth, email.trim(), pass);
-      const fbUser = cred.user;
-      let remoteProfile = await getUserProfileFromFirestore(fbUser.uid);
-
-      let userFavs = remoteProfile?.favoriteMovieIds || [];
-      if (authModal.pendingMovieId && !userFavs.includes(authModal.pendingMovieId)) {
-        userFavs = [...userFavs, authModal.pendingMovieId];
-        await addFavoriteToFirestore(fbUser.uid, authModal.pendingMovieId, authModal.pendingMovieTitle);
-        addToast(`Added "${authModal.pendingMovieTitle || 'Movie'}" to your Favorites!`, 'success');
-      }
-
-      const profile: UserProfile = {
-        id: fbUser.uid,
-        name: remoteProfile?.name || fbUser.displayName || email.split('@')[0],
-        email: fbUser.email || email,
-        avatar: fbUser.photoURL || undefined,
-        favoriteGenres: remoteProfile?.favoriteGenres || ['Sci-Fi', 'Action'],
-        favoriteMovieIds: userFavs,
-        recommendationHistory: remoteProfile?.recommendationHistory || [],
-        joinedDate: remoteProfile?.joinedDate || 'September 2026',
-      };
-
-      setCurrentUser(profile);
-      setFavorites(userFavs);
-      localStorage.setItem(SESSION_KEY, JSON.stringify(profile));
-      addToast(`Welcome back, ${profile.name}! Signed in via Firebase.`, 'success');
-      closeAuthModal();
-    } catch (err: any) {
-      const msg = err.code ? err.code.replace('auth/', '').replace(/-/g, ' ') : err.message;
-      addToast(`Sign-in error: ${msg}`, 'error');
-      throw err;
-    }
+  const addToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3500);
   };
 
-  // Firebase Email/Password Sign-Up
-  const signUpWithFirebase = async (email: string, pass: string, displayName: string) => {
-    try {
-      const cred = await createUserWithEmailAndPassword(auth, email.trim(), pass);
-      const fbUser = cred.user;
-
-      if (displayName.trim()) {
-        await updateProfile(fbUser, { displayName: displayName.trim() });
-      }
-
-      let userFavs: string[] = [];
-      if (authModal.pendingMovieId) {
-        userFavs = [authModal.pendingMovieId];
-        await addFavoriteToFirestore(fbUser.uid, authModal.pendingMovieId, authModal.pendingMovieTitle);
-        addToast(`Added "${authModal.pendingMovieTitle || 'Movie'}" to your Favorites!`, 'success');
-      }
-
-      const newProfile: UserProfile = {
-        id: fbUser.uid,
-        name: displayName.trim() || email.split('@')[0],
-        email: fbUser.email || email,
-        favoriteGenres: ['Sci-Fi', 'Action', 'Drama'],
-        favoriteMovieIds: userFavs,
-        recommendationHistory: [],
-        joinedDate: 'September 2026',
-      };
-
-      // Persist to Cloud Firestore backend
-      await saveUserProfileToFirestore(fbUser.uid, newProfile);
-
-      setCurrentUser(newProfile);
-      setFavorites(userFavs);
-      localStorage.setItem(SESSION_KEY, JSON.stringify(newProfile));
-      addToast(`Account created successfully! Welcome to MovieMind.`, 'success');
-      closeAuthModal();
-    } catch (err: any) {
-      const msg = err.code ? err.code.replace('auth/', '').replace(/-/g, ' ') : err.message;
-      addToast(`Registration error: ${msg}`, 'error');
-      throw err;
-    }
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Firebase Google Popup Sign-In
-  const signInWithGoogle = async () => {
-    try {
-      const cred = await signInWithPopup(auth, googleProvider);
-      const fbUser = cred.user;
-      let remoteProfile = await getUserProfileFromFirestore(fbUser.uid);
-
-      let userFavs = remoteProfile?.favoriteMovieIds || [];
-      if (authModal.pendingMovieId && !userFavs.includes(authModal.pendingMovieId)) {
-        userFavs = [...userFavs, authModal.pendingMovieId];
-        await addFavoriteToFirestore(fbUser.uid, authModal.pendingMovieId, authModal.pendingMovieTitle);
-        addToast(`Added "${authModal.pendingMovieTitle || 'Movie'}" to your Favorites!`, 'success');
-      }
-
-      const profile: UserProfile = {
-        id: fbUser.uid,
-        name: fbUser.displayName || remoteProfile?.name || fbUser.email?.split('@')[0] || 'Cinephile',
-        email: fbUser.email || '',
-        avatar: fbUser.photoURL || undefined,
-        favoriteGenres: remoteProfile?.favoriteGenres || ['Sci-Fi', 'Action'],
-        favoriteMovieIds: userFavs,
-        recommendationHistory: remoteProfile?.recommendationHistory || [],
-        joinedDate: remoteProfile?.joinedDate || 'September 2026',
-      };
-
-      // Ensure stored in Firestore
-      await saveUserProfileToFirestore(fbUser.uid, profile);
-
-      setCurrentUser(profile);
-      setFavorites(userFavs);
-      localStorage.setItem(SESSION_KEY, JSON.stringify(profile));
-      addToast(`Welcome, ${profile.name}! Signed in with Google.`, 'success');
-      closeAuthModal();
-    } catch (err: any) {
-      // In sandbox/iframe environments, popups can be blocked or cancelled; provide clean feedback
-      if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request') {
-        addToast('Google sign-in popup was blocked. Please try with email/password.', 'info');
-      } else {
-        const msg = err.code ? err.code.replace('auth/', '').replace(/-/g, ' ') : err.message;
-        addToast(`Google sign-in: ${msg}`, 'error');
-      }
-      throw err;
-    }
-  };
-
-  // Quick Demo / Local Login
   const login = (profile: Partial<UserProfile> & { name: string; email: string }) => {
     const userEmail = profile.email.trim().toLowerCase();
     let userFavs: string[] = [];
@@ -360,6 +165,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       userFavs = profile.favoriteMovieIds || [];
     }
 
+    // If there was a pending favorite click, add it!
     if (authModal.pendingMovieId && !userFavs.includes(authModal.pendingMovieId)) {
       userFavs = [...userFavs, authModal.pendingMovieId];
       addToast(
@@ -385,21 +191,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setFavorites(userFavs);
     localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
     localStorage.setItem(`moviesuggest_favs_${userEmail}`, JSON.stringify(userFavs));
-
-    // Also async save to Firestore if network is ready
-    if (sessionUser.id) {
-      saveUserProfileToFirestore(sessionUser.id, sessionUser).catch(() => {});
-    }
-
     closeAuthModal();
   };
 
-  const logout = async () => {
-    try {
-      await signOut(auth);
-    } catch (e) {
-      console.warn('Firebase signOut error', e);
-    }
+  const logout = () => {
     setCurrentUser(null);
     setFavorites([]);
     localStorage.removeItem(SESSION_KEY);
@@ -410,6 +205,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const movie = MOVIES_DATA.find((m) => m.id === movieId);
     const movieTitle = movie ? `"${movie.title}"` : 'Movie';
 
+    // Guard: If user is not logged in, prompt sign in
     if (!currentUser) {
       openAuthModal({
         mode: 'signin',
@@ -420,28 +216,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return;
     }
 
-    const userId = currentUser.id || `u-${currentUser.email}`;
-    const exists = favorites.includes(movieId);
-
-    if (exists) {
-      // Optimistic UI update
-      setFavorites((prev) => prev.filter((id) => id !== movieId));
-      addToast(`Removed ${movieTitle} from your Favorites`, 'info');
-
-      // Sync with Firestore backend
-      removeFavoriteFromFirestore(userId, movieId).catch((err) => {
-        console.warn('Firestore favorite removal sync notice:', err);
-      });
-    } else {
-      // Optimistic UI update
-      setFavorites((prev) => [...prev, movieId]);
-      addToast(`Added ${movieTitle} to your Favorites!`, 'success');
-
-      // Sync with Firestore backend
-      addFavoriteToFirestore(userId, movieId, movie?.title).catch((err) => {
-        console.warn('Firestore favorite addition sync notice:', err);
-      });
-    }
+    setFavorites((prev) => {
+      const exists = prev.includes(movieId);
+      if (exists) {
+        addToast(`Removed ${movieTitle} from your Favorites`, 'info');
+        return prev.filter((id) => id !== movieId);
+      } else {
+        addToast(`Added ${movieTitle} to your Favorites!`, 'success');
+        return [...prev, movieId];
+      }
+    });
   };
 
   const isFavorite = (movieId: string) => favorites.includes(movieId);
@@ -453,14 +237,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const updated = { ...currentUser, ...updates };
     setCurrentUser(updated);
     localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
-
-    // Sync with Firestore backend
-    if (currentUser.id) {
-      saveUserProfileToFirestore(currentUser.id, updated).catch((err) => {
-        console.warn('Firestore profile sync notice:', err);
-      });
-    }
-
     addToast('Profile updated successfully!', 'success');
   };
 
@@ -473,10 +249,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
       setCurrentUser(updated);
       localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
-
-      if (currentUser.id) {
-        saveUserProfileToFirestore(currentUser.id, { favoriteGenres: prefs.favoriteGenres }).catch(() => {});
-      }
     }
     addToast('Recommendation preferences updated!', 'success');
   };
@@ -494,13 +266,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
     setCurrentUser(updated);
     localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
-
-    // Sync with Firestore backend
-    if (currentUser.id) {
-      saveRecommendationHistoryToFirestore(currentUser.id, entry).catch((err) => {
-        console.warn('Firestore recommendation history sync notice:', err);
-      });
-    }
   };
 
   const userProfile = currentUser || GUEST_PROFILE;
@@ -511,9 +276,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         currentUser,
         isLoggedIn: currentUser !== null,
         login,
-        signInWithFirebase,
-        signUpWithFirebase,
-        signInWithGoogle,
         logout,
         authModal,
         openAuthModal,
@@ -547,5 +309,4 @@ export const useApp = () => {
   }
   return context;
 };
-
 
